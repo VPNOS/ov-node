@@ -9,35 +9,38 @@ from colorama import Fore, Style
 
 def install_ovnode():
     try:
-        subprocess.run(
-            ["wget", "https://git.io/vpn", "-O", "/root/openvpn-install.sh"], check=True
-        )  # thanks to Nyr for ovpn installation script <3 https://github.com/Nyr/openvpn-install
+        # Get the current script directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_ovpn_script = os.path.join(script_dir, "openvpn-install.sh")
+        target_ovpn_script = "/root/openvpn-install.sh"
+        
+        # Copy openvpn-install.sh from current directory to /root/
+        if os.path.exists(project_ovpn_script):
+            print("Using openvpn-install.sh from project directory...")
+            shutil.copy(project_ovpn_script, target_ovpn_script)
+            # Make sure the script is executable
+            os.chmod(target_ovpn_script, 0o755)
+        else:
+            print("openvpn-install.sh not found in project, downloading...")
+            subprocess.run(
+                ["wget", "https://git.io/vpn", "-O", target_ovpn_script], check=True
+            )
 
-        bash = pexpect.spawn(
-            "/usr/bin/bash", ["/root/openvpn-install.sh"], encoding="utf-8", timeout=180
-        )
+        # Run the OpenVPN installer script (now with automated defaults)
         print("Running OpenVPN installer...")
+        subprocess.run(
+            ["/usr/bin/bash", target_ovpn_script],
+            check=True
+        )
 
-        prompts = [
-            (r"Which IPv4 address should be used.*:", "1"),
-            (r"Protocol.*:", "2"),
-            (r"Port.*:", "1194"),
-            (r"Select a DNS server for the clients.*:", "1"),
-            (r"Enter a name for the first client.*:", "first_client"),
-            (r"Press any key to continue...", ""),
-        ]
-
-        for pattern, reply in prompts:
-            try:
-                bash.expect(pattern, timeout=10)
-                bash.sendline(reply)
-            except pexpect.TIMEOUT:
-                pass
-
-        bash.expect(pexpect.EOF, timeout=None)
-        bash.close()
-
-        shutil.copy(".env.example", ".env")
+        # Copy .env.example to .env in the current directory
+        env_example = os.path.join(script_dir, ".env.example")
+        env_file = os.path.join(script_dir, ".env")
+        
+        if os.path.exists(env_example):
+            shutil.copy(env_example, env_file)
+        else:
+            print("Warning: .env.example not found")
 
         # OV-Node configuration prompts
         example_uuid = str(uuid4())
@@ -50,14 +53,14 @@ def install_ovnode():
         }
 
         lines = []
-        with open(".env", "r") as f:
+        with open(env_file, "r") as f:
             for line in f:
                 for key, value in replacements.items():
                     if line.startswith(f"{key}="):
                         line = f"{key}={value}\n"
                 lines.append(line)
 
-        with open(".env", "w") as f:
+        with open(env_file, "w") as f:
             f.writelines(lines)
 
         run_ovnode()
