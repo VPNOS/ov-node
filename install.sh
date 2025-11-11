@@ -32,7 +32,13 @@ fi
 
 echo -e "${YELLOW}Installing dependencies in virtual environment...${NC}"
 "$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install -r requirements.txt
+
+if [ -f "$INSTALL_DIR/requirements.txt" ]; then
+    "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
+else
+    echo -e "${YELLOW}requirements.txt not found, installing basic dependencies...${NC}"
+    "$VENV_DIR/bin/pip" install fastapi uvicorn psutil pydantic_settings python-dotenv colorama pexpect requests
+fi
 
 echo -e "${YELLOW}Running installer...${NC}"
 "$VENV_DIR/bin/python" installer.py

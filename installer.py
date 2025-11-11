@@ -112,12 +112,20 @@ def update_ovnode():
             shutil.move(backup_env, env_file)
 
         print(Fore.YELLOW + "Creating virtual environment..." + Style.RESET_ALL)
-        subprocess.run(["/usr/bin/python3", "-m", "venv", venv_dir], check=True)
+        if not os.path.exists(venv_dir):
+            subprocess.run(["/usr/bin/python3", "-m", "venv", venv_dir], check=True)
 
         print(Fore.YELLOW + "Installing requirements..." + Style.RESET_ALL)
         pip_path = os.path.join(venv_dir, "bin", "pip")
         subprocess.run([pip_path, "install", "--upgrade", "pip"], check=True)
-        subprocess.run([pip_path, "install", "-r", "requirements.txt"], check=True)
+        
+        requirements_file = os.path.join(install_dir, "requirements.txt")
+        if os.path.exists(requirements_file):
+            subprocess.run([pip_path, "install", "-r", requirements_file], check=True)
+        else:
+            print(Fore.YELLOW + "requirements.txt not found, installing basic dependencies..." + Style.RESET_ALL)
+            subprocess.run([pip_path, "install", "fastapi", "uvicorn", "psutil", "pydantic_settings", 
+                          "python-dotenv", "colorama", "pexpect", "requests"], check=True)
 
         subprocess.run(["systemctl", "restart", "ov-node"], check=True)
 
