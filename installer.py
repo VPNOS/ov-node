@@ -72,40 +72,52 @@ def install_ovnode():
 
 def update_ovnode():
     try:
-        repo = "https://api.github.com/repos/primeZdev/ov-node/releases/latest"
         install_dir = "/opt/ov-node"
+        venv_dir = os.path.join(install_dir, "venv")
         env_file = os.path.join(install_dir, ".env")
         backup_env = "/tmp/ovnode_env_backup"
 
-        response = requests.get(repo)
-        response.raise_for_status()
-        release = response.json()
-
-        download_url = release["tarball_url"]
-        filename = "/tmp/ov-node-latest.tar.gz"
-
-        print(Fore.YELLOW + f"Downloading {download_url}" + Style.RESET_ALL)
-        subprocess.run(["wget", "-O", filename, download_url], check=True)
-
+        # Backup .env file
         if os.path.exists(env_file):
             shutil.copy2(env_file, backup_env)
 
+        # Check if directory exists and is a git repository
         if os.path.exists(install_dir):
-            shutil.rmtree(install_dir)
+            os.chdir(install_dir)
+            if os.path.exists(os.path.join(install_dir, ".git")):
+                print(Fore.YELLOW + "Pulling latest changes from repository..." + Style.RESET_ALL)
+                subprocess.run(["git", "fetch", "--all"], check=True)
+                subprocess.run(["git", "reset", "--hard", "origin/main"], check=True)
+                subprocess.run(["git", "pull", "origin", "main"], check=True)
+            else:
+                # If not a git repo, clone it
+                print(Fore.YELLOW + "Cloning repository..." + Style.RESET_ALL)
+                shutil.rmtree(install_dir)
+                subprocess.run(
+                    ["git", "clone", "https://github.com/primeZdev/ov-node.git", install_dir],
+                    check=True
+                )
+                os.chdir(install_dir)
+        else:
+            # Directory doesn't exist, clone it
+            print(Fore.YELLOW + "Cloning repository..." + Style.RESET_ALL)
+            subprocess.run(
+                ["git", "clone", "https://github.com/primeZdev/ov-node.git", install_dir],
+                check=True
+            )
+            os.chdir(install_dir)
 
-        os.makedirs(install_dir, exist_ok=True)
-
-        subprocess.run(
-            ["tar", "-xzf", filename, "-C", install_dir, "--strip-components=1"],
-            check=True,
-        )
-
+        # Restore .env file
         if os.path.exists(backup_env):
             shutil.move(backup_env, env_file)
 
+        print(Fore.YELLOW + "Creating virtual environment..." + Style.RESET_ALL)
+        subprocess.run(["/usr/bin/python3", "-m", "venv", venv_dir], check=True)
+
         print(Fore.YELLOW + "Installing requirements..." + Style.RESET_ALL)
-        os.chdir(install_dir)
-        subprocess.run(["pip", "install", "-r", "requirements.txt"], check=True)
+        pip_path = os.path.join(venv_dir, "bin", "pip")
+        subprocess.run([pip_path, "install", "--upgrade", "pip"], check=True)
+        subprocess.run([pip_path, "install", "-r", "requirements.txt"], check=True)
 
         subprocess.run(["systemctl", "restart", "ov-node"], check=True)
 
@@ -115,6 +127,8 @@ def update_ovnode():
 
     except Exception as e:
         print(Fore.RED + f"Update failed: {e}" + Style.RESET_ALL)
+        input("Press Enter to return to the menu...")
+        menu()
 
 
 def uninstall_ovnode():
@@ -165,10 +179,10 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/opt/ov-node/core
-ExecStart=/usr/bin/python3 app.py
+ExecStart=/opt/ov-node/venv/bin/python app.py
 Restart=always
 RestartSec=5
-Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=/opt/ov-node/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
 [Install]
 WantedBy=multi-user.target
